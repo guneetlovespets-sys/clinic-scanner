@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f456e">
+<meta name="robots" content="noindex, nofollow">
+<title>Clinic Scanner</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --ink:#1b2430; --mute:#5d6b7a; --line:#dfe5ec; --bg:#f4f6f9; --card:#fff; --brand:#1f456e;
+          --ok:#1d7a46; --okbg:#e3f4ea; --warn:#9a5b00; --warnbg:#fff2dc; --bad:#b3261e; --badbg:#fde7e6; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+  header { position:sticky; top:0; z-index:5; background:var(--brand); color:#fff; padding:10px 14px 0; padding-top:max(10px, env(safe-area-inset-top)); }
+  .top { display:flex; align-items:center; gap:8px; }
+  .top h1 { font-size:17px; margin:0; flex:1; }
+  .sync { font-size:12px; opacity:.85; cursor:pointer; }
+  .row { display:flex; gap:8px; margin:8px 0; align-items:center; }
+  select, input, button { font:inherit; }
+  header select { flex:1; padding:8px; border-radius:8px; border:0; }
+  nav { display:flex; margin-top:6px; }
+  nav button { flex:1; background:none; border:0; color:#cfe0f2; padding:10px 0; font-weight:600; border-bottom:3px solid transparent; }
+  nav button.on { color:#fff; border-color:#fff; }
+  main { padding:14px; max-width:640px; margin:0 auto; padding-bottom:40px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .btn { display:block; width:100%; padding:14px; border-radius:10px; border:0; background:var(--brand); color:#fff; font-weight:600; font-size:16px; }
+  .btn.alt { background:#fff; color:var(--brand); border:1.5px solid var(--brand); }
+  .btn.small { display:inline-block; width:auto; padding:8px 12px; font-size:14px; }
+  .btn:disabled { opacity:.45; }
+  .in { width:100%; padding:12px; border:1.5px solid var(--line); border-radius:10px; font-size:16px; background:#fff; }
+  .muted { color:var(--mute); font-size:13px; }
+  .big { font-size:18px; font-weight:700; margin:2px 0 6px; }
+  .kv { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; font-size:14px; }
+  .kv b { color:var(--mute); font-weight:500; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:600; background:#eef1f5; color:var(--mute); }
+  .badge.ok { background:var(--okbg); color:var(--ok); } .badge.warn { background:var(--warnbg); color:var(--warn); } .badge.bad { background:var(--badbg); color:var(--bad); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0; }
+  .chip { padding:7px 12px; border-radius:999px; border:1.5px solid var(--line); background:#fff; font-size:13px; }
+  .chip.on { border-color:var(--brand); color:var(--brand); font-weight:600; }
+  .list .it { padding:11px 2px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .line { display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .line .nm { flex:1; min-width:0; } .line .nm div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .qty { display:flex; align-items:center; gap:4px; }
+  .qty button { width:36px; height:36px; border-radius:8px; border:1.5px solid var(--line); background:#fff; font-size:18px; }
+  .qty input { width:54px; text-align:center; padding:7px 2px; border:1.5px solid var(--line); border-radius:8px; font-size:16px; }
+  .var { font-size:12px; font-weight:700; min-width:52px; text-align:right; }
+  .var.ok { color:var(--ok); } .var.bad { color:var(--bad); } .var.warn { color:var(--warn); }
+  .sec { font-weight:700; font-size:13px; color:var(--mute); text-transform:uppercase; letter-spacing:.04em; margin:6px 0 2px; }
+  #scanner { position:fixed; inset:0; background:#000; z-index:20; display:none; flex-direction:column; }
+  #scanner.on { display:flex; }
+  #scanner video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #scanner .bar { padding:12px; padding-bottom:max(12px, env(safe-area-inset-bottom)); background:#111; display:flex; flex-direction:column; gap:8px; }
+  #scanner .hint { color:#ddd; text-align:center; font-size:14px; min-height:20px; }
+  #scanner .last { color:#fff; background:rgba(29,122,70,.9); border-radius:10px; padding:8px 12px; font-weight:600; display:none; }
+  .frame { position:absolute; left:8%; right:8%; top:34%; height:24%; border:3px solid rgba(255,255,255,.9); border-radius:12px; pointer-events:none; box-shadow:0 0 0 9999px rgba(0,0,0,.35); }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#222; color:#fff; padding:10px 16px; border-radius:10px; z-index:30; max-width:90%; display:none; }
+  .hide { display:none !important; }
+  #setup { position:fixed; inset:0; background:var(--bg); z-index:40; padding:24px 18px; overflow:auto; }
+  label.sw { display:flex; gap:10px; align-items:flex-start; font-size:14px; margin:10px 0; }
+  label.sw input { width:22px; height:22px; margin-top:1px; }
+</style>
+</head>
+<body>
+<div id="setup" class="hide">
+  <div style="max-width:420px;margin:0 auto">
+    <h2 style="margin:6px 0 4px">Clinic Scanner</h2>
+    <div class="muted">Supertails internal. One-time setup on this phone.</div>
+    <div class="card" style="margin-top:16px">
+      <div class="muted">Your name (shown on what you submit)</div>
+      <div class="row"><input class="in" id="setName" autocomplete="name"></div>
+      <div class="muted">App PIN (ask your clinic manager)</div>
+      <div class="row"><input class="in" id="setPin" inputmode="numeric" type="password" autocomplete="off"></div>
+      <div class="muted" id="setErr" style="color:var(--bad)"></div>
+      <div style="height:8px"></div>
+      <button class="btn" id="setGo" onclick="doSetup()">Start</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="top"><h1>Clinic Scanner</h1><span class="sync" id="sync" onclick="syncCatalog(true)">…</span></div>
+  <div class="row"><select id="clinic"></select></div>
+  <nav><button data-t="scan" class="on">Scan</button><button data-t="capture">Capture</button><button data-t="count">Count</button></nav>
+</header>
+
+<main>
+  <!-- SCAN -->
+  <section id="t-scan">
+    <div class="card">
+      <button class="btn" onclick="openScanner(onLookup)">Scan a pack</button>
+      <div class="row"><input class="in" id="lookupIn" inputmode="numeric" placeholder="…or type / scanner-gun the barcode" onkeydown="if(event.key==='Enter')onLookup(this.value)"></div>
+    </div>
+    <div id="lookupOut"></div>
+  </section>
+
+  <!-- CAPTURE -->
+  <section id="t-capture" class="hide">
+    <div class="card" id="capPick">
+      <div class="muted">Pick the SKU on the shelf, then scan its pack. Safe barcodes go straight into the mapping; doubtful ones go to review.</div>
+      <div id="capPrefill" class="hide" style="margin-top:8px"></div>
+      <div class="chips" id="capChips"></div>
+      <input class="in" id="capQ" placeholder="Search SKU code, name or brand" oninput="renderCapList()">
+      <div class="list" id="capList"></div>
+    </div>
+    <div class="card hide" id="capSku"></div>
+  </section>
+
+  <!-- COUNT -->
+  <section id="t-count" class="hide">
+    <div class="card">
+      <div class="row"><select class="in" id="bin"></select></div>
+      <div class="muted" id="binMeta"></div>
+      <div id="countTools" class="hide">
+        <div style="height:8px"></div>
+        <button class="btn" onclick="openScanner(onCountScan, true)">Scan items</button>
+        <div class="row"><input class="in" id="countIn" inputmode="numeric" placeholder="…or type / scanner-gun a barcode" onkeydown="if(event.key==='Enter'){onCountScan(this.value);this.value='';}"></div>
+        <div class="row"><input class="in" id="countQ" placeholder="Find an item with no barcode (name or SKU)" oninput="renderCount()"></div>
+      </div>
+    </div>
+    <div class="card hide" id="countCard">
+      <div class="muted" id="countMeta"></div>
+      <div id="countLines"></div>
+    </div>
+    <div id="countFoot" class="hide">
+      <label class="sw"><input type="checkbox" id="complete"> <span><b>This bin is fully counted.</b> Anything the system expects here that I did not count is recorded as 0.</span></label>
+      <button class="btn" id="countSubmit" onclick="submitCount()">Submit count</button>
+      <div style="height:8px"></div>
+      <button class="btn alt" onclick="clearCount()">Discard this count</button>
+    </div>
+  </section>
+</main>
+
+<div id="scanner">
+  <div style="position:relative;flex:1"><video id="vid" playsinline muted></video><div class="frame"></div></div>
+  <div class="bar">
+    <div class="last" id="scanLast"></div>
+    <div class="hint" id="scanHint">Hold the barcode inside the box</div>
+    <button class="btn alt" onclick="document.getElementById('photo').click()">Take a photo instead</button>
+    <input type="file" id="photo" accept="image/*" capture="environment" class="hide" onchange="decodePhoto(this)">
+    <button class="btn" style="background:#444" onclick="closeScanner()">Done</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== config ===== */
+const API_URL = '__API_URL__';
+
+/* ===== small utils ===== */
+const $ = id => document.getElementById(id);
+const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+             set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms); }
+function beep() { try { navigator.vibrate && navigator.vibrate(70); } catch (e) {} }
+
+/* ===== API (PIN-protected Apps Script) ===== */
+let PIN = LS.get('pin', ''), USER = LS.get('user', '');
+async function api(action, data) {
+  const r = await fetch(API_URL, { method: 'POST', redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, pin: PIN, data }) });
+  const j = await r.json();
+  if (!j.ok) {
+    if (j.error === 'PIN_WRONG') { PIN = ''; LS.set('pin', ''); showSetup('That PIN is not right. Ask your clinic manager.'); }
+    throw new Error(j.error || 'Server error');
+  }
+  return j.data;
+}
+function showSetup(err) {
+  $('setup').classList.remove('hide');
+  if (!$('setName').value) $('setName').value = USER || '';   // never wipe a name the person just typed
+  $('setPin').value = ''; $('setErr').textContent = err || '';
+}
+async function doSetup() {
+  const n = $('setName').value.trim(), p = $('setPin').value.trim();
+  if (!n) { $('setErr').textContent = 'Enter your name.'; return; }
+  if (!p) { $('setErr').textContent = 'Enter the PIN.'; return; }
+  $('setGo').disabled = true; $('setGo').textContent = 'Checking…';
+  PIN = p;
+  try { await api('ping'); USER = n; LS.set('user', n); LS.set('pin', p); $('setup').classList.add('hide');
+        await syncCatalog(!CAT); if (LS.get('tab') === 'count') loadBins(); }
+  catch (e) { if (e.message !== 'PIN_WRONG') $('setErr').textContent = 'Could not reach the server: ' + e.message; }
+  $('setGo').disabled = false; $('setGo').textContent = 'Start';
+}
+
+/* ===== catalog (offline-first) ===== */
+let CAT = LS.get('cat', null), BY_BC = new Map(), BY_SKU = new Map();
+const R = { sku:0, name:1, brand:2, grp:3, unit:4, mrp:5, b1:6, b2:7, status:8 };
+function variants(b) { const v = [b]; if (b.length === 12) v.push('0' + b); if (b.length === 13 && b[0] === '0') v.push(b.slice(1)); return v; }
+function gtinOk(s) {
+  if (!/^\d+$/.test(s) || ![8, 12, 13, 14].includes(s.length)) return false;
+  const d = s.split('').map(Number), check = d.pop(); let sum = 0;
+  d.reverse().forEach((v, i) => sum += v * (i % 2 === 0 ? 3 : 1));
+  return (10 - sum % 10) % 10 === check;
+}
+function indexCatalog() {
+  BY_BC = new Map(); BY_SKU = new Map();
+  if (!CAT) return;
+  CAT.rows.forEach(r => { BY_SKU.set(r[R.sku], r); [r[R.b1], r[R.b2]].forEach(b => { if (b) variants(b).forEach(v => BY_BC.set(v, r)); }); });
+  $('sync').textContent = `${CAT.rows.filter(r => r[R.b1]).length}/${CAT.rows.length} mapped ⟳`;
+}
+async function syncCatalog(force) {
+  if (!PIN) return;
+  try {
+    if (!force && CAT) { const v = await api('version'); if (String(v.version) === String(CAT.version)) { $('sync').textContent = $('sync').textContent.replace(/ ✓$/, '') + ' ✓'; return; } }
+    $('sync').textContent = 'syncing…';
+    CAT = await api('catalog'); LS.set('cat', CAT);
+    indexCatalog(); fillClinics(); renderCapList();
+  } catch (e) { $('sync').textContent = CAT ? 'offline · cached' : 'offline'; if (!CAT && PIN) toast('Could not load the mapping. Check the connection.'); }
+}
+function fillClinics() {
+  if (!CAT) return;
+  const cl = $('clinic'), saved = LS.get('clinic', '');
+  cl.innerHTML = '<option value="">Select your clinic…</option>' + CAT.clinics.map(c => `<option${c === saved ? ' selected' : ''}>${esc(c)}</option>`).join('');
+}
+$('clinic').onchange = e => { LS.set('clinic', e.target.value); BINS = null; if (LS.get('tab') === 'count') loadBins(); };
+function needClinic() { if (!$('clinic').value) { toast('Select your clinic first'); $('clinic').focus(); return false; } return true; }
+
+/* ===== tabs ===== */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.t));
+function showTab(t) {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  ['scan', 'capture', 'count'].forEach(x => $('t-' + x).classList.toggle('hide', x !== t));
+  LS.set('tab', t);
+  if (t === 'capture') renderCapList();
+  if (t === 'count') { if (!BINS) loadBins(); renderCount(); }
+}
+
+/* ===== scanner: live camera (BarcodeDetector → ZXing fallback), photo, scanner gun ===== */
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+let stream = null, scanCb = null, keepOpen = false, lastCode = '', lastAt = 0, zx = null, detector = null, zxLoaded = false;
+async function loadZX() {
+  if (zxLoaded) return; await new Promise((res, rej) => { const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  zxLoaded = true;
+}
+async function getDetector() {
+  if (detector) return detector;
+  if ('BarcodeDetector' in window) {
+    try { const sup = await BarcodeDetector.getSupportedFormats(); const f = FORMATS.filter(x => sup.includes(x));
+          if (f.length) { detector = new BarcodeDetector({ formats: f }); return detector; } } catch (e) {}
+  }
+  await loadZX(); zx = zx || new ZXing.BrowserMultiFormatReader(); return null;
+}
+function hit(code) {
+  code = String(code || '').replace(/\s/g, ''); if (!code) return;
+  const now = Date.now(); if (code === lastCode && now - lastAt < 2000) return;
+  lastCode = code; lastAt = now; beep();
+  if (!keepOpen) closeScanner();
+  scanCb && scanCb(code);
+}
+function scanFeedback(text, good) { const el = $('scanLast'); el.textContent = text; el.style.display = 'block'; el.style.background = good ? 'rgba(29,122,70,.92)' : 'rgba(179,38,30,.92)'; }
+async function openScanner(cb, multi) {
+  scanCb = cb; keepOpen = !!multi; lastCode = ''; $('scanLast').style.display = 'none';
+  $('scanner').classList.add('on');
+  $('scanHint').textContent = multi ? 'Scan each item — every scan adds 1. Tap Done when finished.' : 'Hold the barcode inside the box';
+  try {
+    const vid = $('vid');
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    vid.srcObject = stream; await vid.play();
+    const det = await getDetector();
+    if (det) {
+      const loop = async () => { if (!stream) return;
+        try { const r = await det.detect(vid); if (r.length) hit(r[0].rawValue); } catch (e) {}
+        if (stream) setTimeout(loop, 150); };
+      loop();
+    } else {
+      zx.decodeFromStream(stream, vid, (res) => { if (res) hit(res.getText()); });
+    }
+  } catch (e) {
+    $('scanHint').textContent = 'Camera not available — allow camera access, or use “Take a photo instead”.';
+  }
+}
+function closeScanner() {
+  $('scanner').classList.remove('on');
+  if (zx) try { zx.reset(); } catch (e) {}
+  if (stream && stream.getTracks) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+}
+async function decodePhoto(inp) {
+  const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+  try {
+    const det = await getDetector();
+    if (det) { const bmp = await createImageBitmap(f); const r = await det.detect(bmp); if (r.length) return hit(r[0].rawValue); }
+    else { const url = URL.createObjectURL(f); const res = await zx.decodeFromImageUrl(url); URL.revokeObjectURL(url); if (res) return hit(res.getText()); }
+    toast('No barcode found — fill the photo with the barcode, keep it flat and lit', 3500);
+  } catch (e) { toast('No barcode found in the photo — try again or type it'); }
+}
+
+/* ===== SCAN tab ===== */
+function statusBadge(s) {
+  s = s || ''; const cls = /no barcode/i.test(s) ? 'bad' : /verify|fails|review/i.test(s) ? 'warn' : 'ok';
+  return `<span class="badge ${cls}">${esc(s || 'OK')}</span>`;
+}
+function skuCard(r, extra = '') {
+  return `<div class="card"><div class="muted">${esc(r[R.grp])} · ${esc(r[R.brand])}</div>
+    <div class="big">${esc(r[R.name])}</div>
+    <div class="kv"><b>SKU</b><span>${esc(r[R.sku])}</span><b>Unit</b><span>${esc(r[R.unit])}</span>
+      <b>MRP</b><span>₹${esc(r[R.mrp])}</span><b>Barcode</b><span>${esc([r[R.b1], r[R.b2]].filter(Boolean).join(' · ') || '—')}</span>
+      <b>Mapping</b><span>${statusBadge(r[R.status])}</span></div>${extra}</div>`;
+}
+function onLookup(code) {
+  code = String(code).replace(/\s/g, ''); $('lookupIn').value = ''; if (!code) return;
+  const r = BY_BC.get(code);
+  if (r) { $('lookupOut').innerHTML = skuCard(r); return; }
+  $('lookupOut').innerHTML = `<div class="card"><span class="badge bad">Not in mapping</span>
+    <div class="big" style="margin-top:6px">${esc(code)}</div>
+    <div class="muted">${gtinOk(code) ? 'Valid product barcode.' : 'Check digit fails — may be a mis-scan; scan again.'} No SKU carries this barcode yet.</div>
+    <div style="height:10px"></div><button class="btn" onclick="startCaptureWith('${esc(code)}')">Map it to a SKU</button></div>`;
+}
+
+/* ===== CAPTURE tab ===== */
+let capFilter = LS.get('capFilter', 'none'), capPrefill = '', capSel = null;
+const CAP_FILTERS = { none: ['No barcode', r => !r[R.b1]], check: ['Needs checking', r => /verify/i.test(r[R.status])], all: ['All SKUs', r => true] };
+function startCaptureWith(code) { capPrefill = code; capFilter = 'none'; showTab('capture'); }
+function renderCapList() {
+  if (!CAT) return;
+  $('capChips').innerHTML = Object.entries(CAP_FILTERS).map(([k, [lbl, f]]) =>
+    `<button class="chip${k === capFilter ? ' on' : ''}" onclick="capFilter='${k}';LS.set('capFilter','${k}');renderCapList()">${lbl} (${CAT.rows.filter(f).length})</button>`).join('');
+  $('capPrefill').classList.toggle('hide', !capPrefill);
+  $('capPrefill').innerHTML = capPrefill ? `<span class="badge warn">Mapping barcode ${esc(capPrefill)}</span> — pick its SKU below <button class="btn small alt" onclick="capPrefill='';renderCapList()">cancel</button>` : '';
+  const q = $('capQ').value.trim().toLowerCase(), f = CAP_FILTERS[capFilter][1];
+  const hits = CAT.rows.filter(r => f(r) && (!q || (r[R.sku] + ' ' + r[R.name] + ' ' + r[R.brand]).toLowerCase().includes(q)));
+  $('capList').innerHTML = hits.slice(0, 60).map(r =>
+    `<div class="it" onclick="pickSku('${esc(r[R.sku])}')"><div><b>${esc(r[R.name])}</b></div><div class="muted">${esc(r[R.sku])} · ${esc(r[R.brand])} · ${esc(r[R.grp])}</div></div>`).join('')
+    + (hits.length > 60 ? `<div class="muted" style="padding:10px 0">${hits.length - 60} more — narrow the search</div>` : '')
+    + (!hits.length ? '<div class="muted" style="padding:10px 0">Nothing matches.</div>' : '');
+}
+function pickSku(sku) { capSel = BY_SKU.get(sku); if (!capSel) return; $('capPick').classList.add('hide'); $('capSku').classList.remove('hide'); renderCapSku(capPrefill); }
+function renderCapSku(code) {
+  const r = capSel, other = code && BY_BC.get(code);
+  const scanned = code ? `<div class="card" style="margin-top:12px"><div class="muted">Scanned</div><div class="big">${esc(code)}</div>
+      ${gtinOk(code) ? '<span class="badge ok">Check digit OK</span>' : '<span class="badge bad">Check digit fails — rescan before saving</span>'}
+      ${other && other[R.sku] !== r[R.sku] ? `<div class="muted" style="margin-top:6px">⚠ Already on ${esc(other[R.sku])} — saving sends it to review.</div>` : ''}
+      <div style="height:10px"></div><button class="btn" id="capSave" onclick="saveCapture('${esc(code)}')">Save to mapping</button></div>` : '';
+  $('capSku').innerHTML = skuCard(r) + `<button class="btn" onclick="openScanner(c=>renderCapSku(c))">${code ? 'Scan again' : 'Scan this pack'}</button>
+    <div class="row"><input class="in" id="capIn" inputmode="numeric" placeholder="…or type / scanner-gun the barcode" onkeydown="if(event.key==='Enter')renderCapSku(this.value.replace(/\\s/g,''))"></div>
+    ${scanned}<div style="height:8px"></div><button class="btn alt" onclick="backToList()">Back to list</button>`;
+}
+function backToList() { capSel = null; $('capSku').classList.add('hide'); $('capPick').classList.remove('hide'); renderCapList(); }
+async function saveCapture(code) {
+  if (!needClinic()) return;
+  const btn = $('capSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await api('capture', { sku: capSel[R.sku], name: capSel[R.name], barcode: code, clinic: $('clinic').value, by: USER });
+    if (res.applied) {
+      const r = capSel;
+      if (/^Corrected/.test(res.result) || !r[R.b1]) r[R.b1] = code; else if (/second/.test(res.result)) r[R.b2] = code;
+      r[R.status] = /Verified/.test(res.result) ? 'Verified on pack' : 'Captured in clinic';
+      indexCatalog(); LS.set('cat', CAT); syncCatalog(true);
+    }
+    capPrefill = '';
+    $('capSku').innerHTML = `<div class="card"><span class="badge ${res.applied || /Confirmed/.test(res.result) ? 'ok' : 'warn'}">${res.applied ? 'Saved to mapping' : 'Logged'}</span>
+      <div class="big" style="margin-top:6px">${esc(res.result)}</div><div class="muted">${esc(capSel[R.name])} · ${esc(code)}</div></div>
+      <button class="btn" onclick="backToList()">Next SKU</button>`;
+  } catch (e) { btn.disabled = false; btn.textContent = 'Save to mapping'; toast('Not saved — ' + (e.message || 'no connection') + '. Try again.'); }
+}
+
+/* ===== COUNT tab: count vs ERP system stock ===== */
+let BINS = null, STOCK = null, COUNT = LS.get('count', null);
+async function loadBins() {
+  const cl = $('clinic').value;
+  if (!cl) { $('bin').innerHTML = '<option value="">Select your clinic first</option>'; return; }
+  $('bin').innerHTML = '<option>Loading bins…</option>';
+  try {
+    BINS = await api('bins', { clinic: cl });
+    const saved = LS.get('bin', '');
+    $('bin').innerHTML = '<option value="">Select the bin to count…</option>' +
+      BINS.bins.map(([b, n]) => `<option value="${esc(b)}"${b === saved ? ' selected' : ''}>${esc(b)} (${n} lines)</option>`).join('');
+    if ($('bin').value) loadStock();
+  } catch (e) { $('bin').innerHTML = '<option value="">Could not load bins — tap to retry</option>'; BINS = null; }
+}
+$('bin').onchange = e => { LS.set('bin', e.target.value); if (!BINS) return loadBins(); loadStock(); };
+async function loadStock() {
+  const cl = $('clinic').value, bin = $('bin').value; STOCK = null;
+  if (!bin) { renderCount(); return; }
+  $('binMeta').textContent = 'Loading system stock…';
+  try {
+    STOCK = await api('stock', { clinic: cl, bin });
+    STOCK.map = new Map(STOCK.items.map(([s, q, n]) => [s, { qty: q, name: n }]));
+    if (COUNT && COUNT.key !== cl + '|' + bin && COUNT.lines.length) {
+      if (!confirm(`You have an unsent count for ${COUNT.key.replace('|', ' / ')}. Discard it?`)) { $('bin').value = COUNT.key.split('|')[1]; return loadStock(); }
+    }
+    if (!COUNT || COUNT.key !== cl + '|' + bin)
+      COUNT = { key: cl + '|' + bin, session: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), lines: [] };
+    LS.set('count', COUNT);
+  } catch (e) { $('binMeta').textContent = 'Could not load system stock: ' + e.message; }
+  renderCount();
+}
+function lineFor(sku, barcode, name) {
+  let l = COUNT.lines.find(x => sku ? x.sku === sku : x.barcode === barcode);
+  if (!l) { l = { sku, barcode, name, qty: 0 }; COUNT.lines.unshift(l); }
+  return l;
+}
+function onCountScan(code) {
+  code = String(code).replace(/\s/g, ''); if (!code) return;
+  if (!STOCK || !COUNT) { toast('Pick the clinic and bin first'); return; }
+  const r = BY_BC.get(code), sku = r ? r[R.sku] : '';
+  const l = lineFor(sku, code, r ? r[R.name] : (STOCK.map.get(sku) || {}).name || 'Barcode not in mapping');
+  l.qty++; if (!l.barcode) l.barcode = code;
+  LS.set('count', COUNT); renderCount();
+  const sys = sku && STOCK.map.has(sku) ? STOCK.map.get(sku).qty : null;
+  const msg = r ? `${r[R.name].slice(0, 40)} → ${l.qty}${sys != null ? ' / system ' + sys : ' (not expected in this bin)'}` : `Unmapped ${code} → ${l.qty}`;
+  if ($('scanner').classList.contains('on')) scanFeedback(msg, !!r); else toast(msg, 1500);
+}
+function addBySku(sku) { const it = STOCK.map.get(sku); const l = lineFor(sku, '', (BY_SKU.get(sku) || [])[R.name] || it.name); l.qty++; LS.set('count', COUNT); renderCount(); }
+function setQty(i, v) { COUNT.lines[i].qty = Math.max(0, Math.floor(Number(v) || 0)); LS.set('count', COUNT); renderCount(); }
+function varCell(l) {
+  if (!l.sku) return '<span class="var warn">unmapped</span>';
+  const s = STOCK && STOCK.map.has(l.sku) ? STOCK.map.get(l.sku).qty : 0, d = l.qty - s;
+  return `<span class="var ${d === 0 ? 'ok' : 'bad'}">sys ${s}<br>${d === 0 ? '✓' : (d > 0 ? '+' : '') + d}</span>`;
+}
+function renderCount() {
+  const ready = !!(STOCK && COUNT);
+  $('countTools').classList.toggle('hide', !ready); $('countCard').classList.toggle('hide', !ready); $('countFoot').classList.toggle('hide', !ready);
+  if (!ready) { if (!$('bin').value) $('binMeta').textContent = ''; return; }
+  const counted = new Set(COUNT.lines.map(l => l.sku).filter(Boolean));
+  const units = COUNT.lines.reduce((a, l) => a + l.qty, 0);
+  const expected = STOCK.items.filter(([s, q]) => q > 0);
+  $('binMeta').textContent = `System stock as of ${STOCK.asOf} · ${expected.length} SKUs expected in this bin`;
+  $('countMeta').textContent = `${COUNT.lines.length} counted · ${units} units · ${expected.filter(([s]) => !counted.has(s)).length} expected not yet counted (saved on this phone until submitted)`;
+  const q = $('countQ').value.trim().toLowerCase();
+  const lines = COUNT.lines.map((l, i) => [l, i]).filter(([l]) => !q || (l.sku + ' ' + l.name).toLowerCase().includes(q));
+  const todo = expected.filter(([s, , n]) => !counted.has(s) && (!q || (s + ' ' + n).toLowerCase().includes(q)));
+  $('countLines').innerHTML =
+    (lines.length ? '<div class="sec">Counted</div>' + lines.map(([l, i]) => `<div class="line"><div class="nm"><div><b>${esc(l.name)}</b></div>
+      <div class="muted">${esc(l.sku || 'unmapped')}${l.barcode ? ' · ' + esc(l.barcode) : ''}</div></div>${varCell(l)}
+      <div class="qty"><button onclick="setQty(${i},${l.qty - 1})">−</button><input inputmode="numeric" value="${l.qty}" onchange="setQty(${i},this.value)"><button onclick="setQty(${i},${l.qty + 1})">+</button></div></div>`).join('') : '')
+    + (todo.length ? `<div class="sec" style="margin-top:12px">Expected, not counted yet${q ? '' : ` (${todo.length})`}</div>` + todo.slice(0, 80).map(([s, sq, n]) =>
+      `<div class="line"><div class="nm"><div>${esc((BY_SKU.get(s) || [])[R.name] || n)}</div><div class="muted">${esc(s)} · system ${sq}${BY_SKU.get(s) && BY_SKU.get(s)[R.b1] ? '' : ' · no barcode'}</div></div>
+       <button class="btn small alt" onclick="addBySku('${esc(s)}')">+1</button></div>`).join('')
+      + (todo.length > 80 ? `<div class="muted" style="padding:8px 0">${todo.length - 80} more — search to find them</div>` : '') : '')
+    + (!lines.length && !todo.length ? '<div class="muted">Nothing matches.</div>' : '');
+}
+async function submitCount() {
+  if (!COUNT || (!COUNT.lines.length && !$('complete').checked)) return toast('Nothing counted yet');
+  const [clinic, bin] = COUNT.key.split('|'), complete = $('complete').checked;
+  if (complete && !confirm('Mark this bin fully counted? Everything the system expects here that you did not count will be recorded as 0.')) return;
+  const b = $('countSubmit'); b.disabled = true; b.textContent = 'Submitting…';
+  try {
+    const res = await api('count', { session: COUNT.session, clinic, bin, by: USER, complete,
+      lines: COUNT.lines.map(l => ({ sku: l.sku, barcode: l.barcode, name: l.name, qty: l.qty })) });
+    toast(res.duplicate ? 'Already received earlier — cleared.' : `Submitted ${res.lines} lines · ${res.mismatches} differ from system.`, 4000);
+    COUNT = null; LS.set('count', null); $('complete').checked = false; loadStock();
+  } catch (e) { toast('Not sent — ' + (e.message || 'no connection') + '. Your count is kept on this phone; try again.', 4000); }
+  b.textContent = 'Submit count'; b.disabled = false;
+}
+function clearCount() { if (COUNT && COUNT.lines.length && !confirm('Discard this count?')) return; COUNT = null; LS.set('count', null); loadStock(); }
+
+/* ===== boot ===== */
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+indexCatalog(); fillClinics();
+if (!PIN || !USER) showSetup(); else syncCatalog(false);
+showTab(LS.get('tab', 'scan'));
+</script>
+</body>
+</html>
