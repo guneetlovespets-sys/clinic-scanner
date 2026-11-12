@@ -48,6 +48,11 @@
       <a class="btn" id="signin" target="_blank" rel="noopener">Sign in / open the app once</a>
       <button class="btn alt" onclick="location.reload()">Try again</button>
     </div>
+    <div id="iosHelp" class="hide">
+      <div class="muted" style="margin-top:10px">On iPhone, Safari and Chrome block the Google sign-in inside this page. Open the app directly instead — everything works, and <b>Scan</b> takes a photo of the barcode.</div>
+      <a class="btn" id="iosOpen">Open Clinic Scanner</a>
+      <div class="muted" style="margin-top:10px">Tip: on that page tap <b>Share → Add to Home Screen</b> so it opens like an app.</div>
+    </div>
   </div>
 </div>
 
@@ -69,9 +74,16 @@ const APP_ORIGIN_RE = /^https:\/\/n-[a-z0-9-]+-script\.googleusercontent\.com$/;
 const $ = id => document.getElementById(id);
 let appWin = null, appOrigin = null, multi = false, stream = null, detector = null, zx = null, last = '', lastAt = 0;
 
-$('signin').href = APP_URL;
+// iPhone/iPad (every iOS browser is WebKit): embedded Google sign-in is blocked by default,
+// so if the app has not connected quickly, send the person to the app's own page instead.
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+$('signin').href = APP_URL; $('iosOpen').href = APP_URL;
 $('app').src = APP_URL;
-const gateTimer = setTimeout(() => { $('spin').classList.add('hide'); $('gateMsg').textContent = 'Could not open the app.'; $('gateHelp').classList.remove('hide'); }, 12000);
+const gateTimer = setTimeout(() => {
+  $('spin').classList.add('hide');
+  if (IOS) { $('gateMsg').textContent = 'iPhone detected'; $('iosHelp').classList.remove('hide'); }
+  else { $('gateMsg').textContent = 'Could not open the app.'; $('gateHelp').classList.remove('hide'); }
+}, IOS ? 6000 : 12000);
 
 function send(msg) { if (appWin && appOrigin) appWin.postMessage(msg, appOrigin); }
 window.addEventListener('message', e => {
@@ -123,14 +135,44 @@ function closeCam(byUser) {
   stream = null;
   if (byUser) send({ type: 'closed' });
 }
+/* Robust still-photo decoder (iPhone has no BarcodeDetector; full-size photos defeat ZXing).
+   Scales the photo to a few widths, tries 0°/90°, and asks ZXing for retail barcodes only. */
+let zxPhoto = null;
+async function decodeImageFile(f) {
+  const url = URL.createObjectURL(f);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    if ('BarcodeDetector' in window) {
+      try { const det = await getDetector(); if (det) { const r = await det.detect(img); if (r.length) return r[0].rawValue; } } catch (e) {}
+    }
+    if (!window.ZXing) await new Promise((res, rej) => { const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    if (!zxPhoto) {
+      const F = ZXing.BarcodeFormat, hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxPhoto = new ZXing.MultiFormatReader(); zxPhoto.setHints(hints);
+    }
+    const W = img.naturalWidth, H = img.naturalHeight, cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+    for (const target of [1000, 1600, 700, 2200]) {
+      const s = Math.min(1, target / Math.max(W, H)), w = Math.round(W * s), h = Math.round(H * s);
+      for (const rot of [0, 90]) {
+        if (rot) { cv.width = h; cv.height = w; cx.setTransform(0, 1, -1, 0, h, 0); } else { cv.width = w; cv.height = h; cx.setTransform(1, 0, 0, 1, 0, 0); }
+        cx.drawImage(img, 0, 0, w, h);
+        try {
+          const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)));
+          return zxPhoto.decode(bmp).getText();
+        } catch (e) { /* not found at this size/angle — try the next */ }
+      }
+    }
+    return null;
+  } finally { URL.revokeObjectURL(url); }
+}
 async function decodePhoto(inp) {
   const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
-  try {
-    const det = await getDetector();
-    if (det) { const r = await det.detect(await createImageBitmap(f)); if (r.length) return hit(r[0].rawValue); }
-    else { const u = URL.createObjectURL(f); const r = await zx.decodeFromImageUrl(u); URL.revokeObjectURL(u); if (r) return hit(r.getText()); }
-    feedback('No barcode found — fill the photo with the barcode, keep it flat and lit', false);
-  } catch (e) { feedback('No barcode found in the photo — try again', false); }
+  feedback('Reading the barcode…', true);
+  try { const code = await decodeImageFile(f); if (code) return hit(code); } catch (e) {}
+  feedback('No barcode found — fill the photo with the barcode, keep it flat, lit and in focus', false);
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
